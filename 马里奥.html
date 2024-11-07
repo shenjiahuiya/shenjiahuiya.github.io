@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Super Mario Style Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #87CEEB;
+            touch-action: none;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #000;
+            max-width: 100%;
+            max-height: 80vh;
+        }
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 20px;
+            pointer-events: none;
+        }
+        .control-group {
+            display: flex;
+            gap: 20px;
+        }
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.5);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            pointer-events: auto;
+            user-select: none;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        #instructions {
+            position: fixed;
+            top: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            font-family: Arial, sans-serif;
+            display: none;
+        }
+        @media (max-width: 768px) {
+            #instructions {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">点击左右移动，点击跳跃按钮跳跃</div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="controls">
+        <div class="control-group">
+            <div class="control-btn" id="leftBtn">←</div>
+            <div class="control-btn" id="rightBtn">→</div>
+        </div>
+        <div class="control-group">
+            <div class="control-btn" id="jumpBtn">↑</div>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 调整画布大小以适应屏幕
+        function resizeCanvas() {
+            const maxWidth = Math.min(800, window.innerWidth - 20);
+            const maxHeight = Math.min(400, window.innerHeight * 0.7);
+            const ratio = Math.min(maxWidth / 800, maxHeight / 400);
+            
+            canvas.style.width = (800 * ratio) + 'px';
+            canvas.style.height = (400 * ratio) + 'px';
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 游戏常量
+        const GRAVITY = 0.5;
+        const JUMP_FORCE = -12;
+        const MOVEMENT_SPEED = 5;
+
+        // 玩家类
+        class Player {
+            constructor() {
+                this.width = 30;
+                this.height = 40;
+                this.x = 50;
+                this.y = canvas.height - this.height - 10;
+                this.velocityY = 0;
+                this.velocityX = 0;
+                this.isJumping = false;
+                this.direction = 1;
+            }
+
+            update() {
+                this.velocityY += GRAVITY;
+                this.y += this.velocityY;
+                this.x += this.velocityX;
+
+                if (this.y > canvas.height - this.height - 10) {
+                    this.y = canvas.height - this.height - 10;
+                    this.velocityY = 0;
+                    this.isJumping = false;
+                }
+
+                platforms.forEach(platform => {
+                    if (this.x < platform.x + platform.width &&
+                        this.x + this.width > platform.x &&
+                        this.y + this.height > platform.y &&
+                        this.y < platform.y + platform.height) {
+                        
+                        if (this.velocityY > 0 && 
+                            this.y + this.height - this.velocityY <= platform.y) {
+                            this.y = platform.y - this.height;
+                            this.velocityY = 0;
+                            this.isJumping = false;
+                        }
+                    }
+                });
+
+                if (this.x < 0) this.x = 0;
+                if (this.x + this.width > canvas.width) {
+                    this.x = canvas.width - this.width;
+                }
+            }
+
+            draw() {
+                // 角色主体（更小巧的身形）
+                this.width = 20;  // 减小宽度
+                this.height = 25; // 减小高度
+
+                // 身体（深蓝色连体服）
+                ctx.fillStyle = '#1e3799';
+                ctx.fillRect(this.x, this.y + 10, this.width, this.height - 10);
+
+                // 头部（肤色）
+                ctx.fillStyle = '#fdcb6e';
+                ctx.fillRect(this.x, this.y, this.width, 10);
+
+                // 帽子（红色）
+                ctx.fillStyle = '#d63031';
+                ctx.fillRect(this.x - 2, this.y, this.width + 4, 4);
+                ctx.fillRect(this.x + 2, this.y - 3, this.width - 4, 4);
+
+                // 眼睛（黑色）
+                ctx.fillStyle = '#000';
+                if (this.direction === 1) {
+                    ctx.fillRect(this.x + 12, this.y + 5, 2, 2);
+                } else {
+                    ctx.fillRect(this.x + 6, this.y + 5, 2, 2);
+                }
+
+                // 鞋子（棕色）
+                ctx.fillStyle = '#6c5ce7';
+                ctx.fillRect(this.x, this.y + this.height - 4, 8, 4);
+                ctx.fillRect(this.x + 12, this.y + this.height - 4, 8, 4);
+            }
+
+            jump() {
+                if (!this.isJumping) {
+                    this.velocityY = JUMP_FORCE;
+                    this.isJumping = true;
+                }
+            }
+        }
+
+        class Platform {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+            }
+
+            draw() {
+                ctx.fillStyle = '#795548';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+        }
+
+        class Coin {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 15;
+                this.height = 15;
+                this.collected = false;
+            }
+
+            draw() {
+                if (!this.collected) {
+                    ctx.fillStyle = 'gold';
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width/2, this.y + this.height/2, 
+                           this.width/2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        const player = new Player();
+        const platforms = [
+            // 最左边的初始地面平台（马里奥站在这里）
+            // 现在改成 y=300，这样平台会在更靠近底部的位置
+            new Platform(0, 300, 150, 20),
+            // 其他平台相应调整
+            new Platform(200, 220, 80, 20),
+            new Platform(350, 160, 100, 20),
+            new Platform(500, 200, 100, 20),
+            new Platform(650, 140, 100, 20)
+        ];
+        const coins = [
+            // 只保留平台上方的4个金币
+            new Coin(235, 170),  // 第一个平台上方
+            new Coin(385, 110),  // 第二个平台上方
+            new Coin(535, 150),  // 第三个平台上方
+            new Coin(685, 90),   // 最后平台上方
+        ];
+
+        let score = 0;  // 初始分数为0
+
+        // 控制状态
+        const controls = {
+            left: false,
+            right: false,
+            jump: false
+        };
+
+        // 移动端控制
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+        const jumpBtn = document.getElementById('jumpBtn');
+
+        // 触摸事件处理
+        function handleTouchStart(control) {
+            return (e) => {
+                e.preventDefault();
+                controls[control] = true;
+            };
+        }
+
+        function handleTouchEnd(control) {
+            return (e) => {
+                e.preventDefault();
+                controls[control] = false;
+            };
+        }
+
+        leftBtn.addEventListener('touchstart', handleTouchStart('left'));
+        leftBtn.addEventListener('touchend', handleTouchEnd('left'));
+        rightBtn.addEventListener('touchstart', handleTouchStart('right'));
+        rightBtn.addEventListener('touchend', handleTouchEnd('right'));
+        jumpBtn.addEventListener('touchstart', handleTouchStart('jump'));
+        jumpBtn.addEventListener('touchend', handleTouchEnd('jump'));
+
+        // 鼠标事件处理（用于测试）
+        leftBtn.addEventListener('mousedown', handleTouchStart('left'));
+        leftBtn.addEventListener('mouseup', handleTouchEnd('left'));
+        rightBtn.addEventListener('mousedown', handleTouchStart('right'));
+        rightBtn.addEventListener('mouseup', handleTouchEnd('right'));
+        jumpBtn.addEventListener('mousedown', handleTouchStart('jump'));
+        jumpBtn.addEventListener('mouseup', handleTouchEnd('jump'));
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') controls.left = true;
+            if (e.key === 'ArrowRight') controls.right = true;
+            if (e.key === 'ArrowUp' || e.key === ' ') controls.jump = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') controls.left = false;
+            if (e.key === 'ArrowRight') controls.right = false;
+            if (e.key === 'ArrowUp' || e.key === ' ') controls.jump = false;
+        });
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 根据控制状态更新玩家
+            if (controls.left) {
+                player.velocityX = -MOVEMENT_SPEED;
+                player.direction = -1;
+            } else if (controls.right) {
+                player.velocityX = MOVEMENT_SPEED;
+                player.direction = 1;
+            } else {
+                player.velocityX = 0;
+            }
+
+            if (controls.jump) {
+                player.jump();
+            }
+
+            player.update();
+
+            coins.forEach(coin => {
+                if (!coin.collected &&
+                    player.x < coin.x + coin.width &&
+                    player.x + player.width > coin.x &&
+                    player.y < coin.y + coin.height &&
+                    player.y + player.height > coin.y) {
+                    coin.collected = true;
+                    score += 25;  // 每个金币25分，4个金币总共100分
+                }
+            });
+
+            platforms.forEach(platform => platform.draw());
+            coins.forEach(coin => coin.draw());
+            player.draw();
+
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Arial';
+            ctx.fillText(`得分: ${score}`, 20, 30);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
